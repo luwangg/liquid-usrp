@@ -82,8 +82,8 @@ int main (int argc, char **argv)
     }
 
     uhd::device_addr_t dev_addr;
-    //dev_addr["addr0"] = "192.168.10.2";
-    //dev_addr["addr1"] = "192.168.10.3";
+    // device address in dks network
+    dev_addr["addr0"] = "134.147.118.212";
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
 
     // set properties
