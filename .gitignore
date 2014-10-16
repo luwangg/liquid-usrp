@@ -15,6 +15,7 @@ config.log
 config.status
 configure
 makefile
+env-config
 
 # ignore all octave files
 *.m
@@ -37,6 +38,8 @@ src/ofdmflexframe_rx
 src/ofdmflexframe_tx
 src/packet_rx
 src/packet_tx
+src/file_tx
+src/file_rx
 src/ping
 src/rssi
 
