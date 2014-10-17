@@ -38,6 +38,9 @@ unsigned int num_valid_headers_received;
 unsigned int num_valid_packets_received;
 unsigned int num_valid_bytes_received;
 
+// sink file - the decoded payloads are written into this file
+FILE * sink_file;
+
 // callback function
 int callback(unsigned char *  _header,
              int              _header_valid,
@@ -63,6 +66,13 @@ int callback(unsigned char *  _header,
         }
     } else {
     }
+
+    // write the payload into the file.
+    // The file is written everytime callback is called,
+    // irrespective of the validity of the packet.
+    // TODO write only if the packe it valid
+    // TODO construct an ack set-up
+    fwrite((void *)_payload, 64, 1, sink_file);
 
     // update global counters
     num_frames_detected++;
@@ -100,8 +110,15 @@ int main (int argc, char **argv)
 
     double frequency = 462.0e6;
     double bandwidth = 250e3f;
-    double num_seconds = 5.0f;
+    double num_seconds = 20.0f;
     double uhd_rxgain = 20.0;
+
+    // defining sink file
+    sink_file = fopen("/tmp/sink.txt", "w");
+    if (sink_file == NULL) {
+        std::cout << "Can't open file for writing\n";
+        exit(1);
+    }
 
     //
     int d;
@@ -277,6 +294,7 @@ int main (int argc, char **argv)
     msresamp_crcf_destroy(resamp);
     framesync64_destroy(fs);
     timer_destroy(t0);
+    fclose(sink_file);
 
     return 0;
 }
