@@ -54,6 +54,13 @@ int main (int argc, char **argv)
     double txgain_dB = -12.0f;          // software tx gain [dB]
     double uhd_txgain = 40.0;           // uhd (hardware) tx gain
 
+    // define source file, find it's length
+    FILE *source_file;
+    source_file = fopen("/tmp/text.txt", "r");
+    if(source_file == NULL) {
+        std::cout << "The file can't be opened\n";
+        exit(1);
+    }
     //
     int d;
     while ((d = getopt(argc,argv,"uhqvf:b:g:G:N:")) != EOF) {
@@ -162,7 +169,9 @@ int main (int argc, char **argv)
 
     unsigned int j;
     unsigned int pid;
-    for (pid=0; pid<num_frames; pid++) {
+    pid = 0;
+    // read 64 byte payload from the source file.
+    while (fread((void *)payload, 64, 1, source_file) == 1) {
 
         if (verbose)
             printf("tx packet id: %6u\n", pid);
@@ -170,12 +179,10 @@ int main (int argc, char **argv)
         // write header (first two bytes packet ID, remaining are random)
         header[0] = (pid >> 8) & 0xff;
         header[1] = (pid     ) & 0xff;
+        pid++;
         for (j=2; j<8; j++)
             header[j] = rand() & 0xff;
 
-        // initialize payload
-        for (j=0; j<64; j++)
-            payload[j] = rand() & 0xff;
 
         // generate the entire frame
         framegen64_execute(fg, header, payload, frame_samples);
@@ -221,6 +228,8 @@ int main (int argc, char **argv)
     // sleep for a small amount of time to allow USRP buffers
     // to flush
     usleep(100000);
+
+    fclose(source_file);
 
     //finished
     printf("usrp data transfer complete\n");
