@@ -40,6 +40,7 @@ src/packet_rx
 src/packet_tx
 src/file_tx
 src/file_rx
+src/tone_tx
 src/ping
 src/rssi
 
