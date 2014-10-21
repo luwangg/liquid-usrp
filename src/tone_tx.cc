@@ -88,13 +88,19 @@ int main (int argc, char **argv)
     usrp->set_tx_freq(center_freq);
     usrp->set_tx_gain(uhd_txgain);
 
+    // Creating usrp transmit streamer
+    uhd::stream_args_t stream_args("fc32", "sc16");
+    uhd::tx_streamer::sptr tx_stream = usrp->get_tx_stream(stream_args);
+
 
     // number of points in a cycle
     unsigned int len_cycle = 10;
     // one cycle the tone
     std::complex<float> samples[len_cycle];
+    // Length of usrp_buffer
+    size_t buffer_len = 2046;
     // usrp buffer
-    std::vector<std::complex<float> > usrp_buffer(256);
+    std::vector<std::complex<float> > usrp_buffer(buffer_len);
     // Index to keep track of the cycle.
     unsigned int index = 0;
 
@@ -114,16 +120,14 @@ int main (int argc, char **argv)
     index = 0;
     while(true) {       // FIXME Loop based on time elapsed
         // Filling the usrp buffer
-        for(unsigned int sample_counter = 0; sample_counter < 256; sample_counter++) {
+        for(unsigned int sample_counter = 0; sample_counter < buffer_len; sample_counter++) {
             usrp_buffer[sample_counter] = samples[index++];
             if (index == len_cycle)
                 index = 0;
         }
-        usrp->get_device()->send(&usrp_buffer.front(),
-                                 usrp_buffer.size(),
-                                 md,
-                                 uhd::io_type_t::COMPLEX_FLOAT32,
-                                 uhd::device::SEND_MODE_FULL_BUFF);
+        tx_stream->send(&usrp_buffer.front(),
+                        usrp_buffer.size(),
+                        md);
     }
     return 0;
 }
