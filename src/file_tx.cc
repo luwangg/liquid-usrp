@@ -56,7 +56,7 @@ int main (int argc, char **argv)
 
     // define source file, find it's length
     FILE *source_file;
-    source_file = fopen("/tmp/text.txt", "r");
+    source_file = fopen("/home/sreedhm/data-files/text.txt", "r");
     if(source_file == NULL) {
         std::cout << "The file can't be opened\n";
         exit(1);
