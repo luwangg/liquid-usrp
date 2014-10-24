@@ -28,7 +28,6 @@ void usage() {
     printf("tone_tx -- transmit a tone\n");
     printf("\n");
     printf("  u,h   : usage/help\n");
-    printf("  q/v   : quiet/verbose\n");
     printf("  c     : center frequency [Hz], default: 900 MHz\n");
     printf("  r     : usrp sampling rage [Hz], default: 1 MHz\n");
     printf("  f     : tone frequency [Hz], default: 250 kHz\n");
@@ -41,9 +40,6 @@ int main (int argc, char **argv)
 {
     // defining PI
     double PI = std::acos(-1);
-    // command-line options
-    bool verbose = true;
-
 
     double center_freq = 900.0e6;
     double samp_rate = 1.0e6;
@@ -54,12 +50,10 @@ int main (int argc, char **argv)
 
     //
     int d;
-    while ((d = getopt(argc,argv,"uhqvc:r:f:g:G:t:")) != EOF) {
+    while ((d = getopt(argc,argv,"uhc:r:f:g:G:t:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                        return 0;
-        case 'q':   verbose     = false;            break;
-        case 'v':   verbose     = true;             break;
         case 'c':   center_freq = atof(optarg);     break;
         case 'f':   tone_freq   = atof(optarg);     break;
         case 'r':   samp_rate   = atof(optarg);     break;
