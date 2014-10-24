@@ -92,7 +92,7 @@ void usage() {
     printf("packet_rx -- receive simple packets\n");
     printf("  u,h   :   usage/help\n");
     printf("  q/v   :   quiet/verbose\n");
-    printf("  f     :   center frequency [Hz], default: 462 MHz\n");
+    printf("  f     :   center frequency [Hz], default: 900 MHz\n");
     printf("  b     :   bandwidth [Hz], default: 250 kHz\n");
     printf("  G     :   uhd rx gain [dB] (default: 20dB)\n");
     printf("  t     :   run time [seconds]\n");
@@ -103,12 +103,12 @@ int main (int argc, char **argv)
 {
     // command-line options
     verbose = true;
-    unsigned long int ADC_RATE = 64e6;
+    unsigned long int ADC_RATE = 100e6;
 
     double min_bandwidth = 0.25*(ADC_RATE / 512.0);
     double max_bandwidth = 0.25*(ADC_RATE /   4.0);
 
-    double frequency = 462.0e6;
+    double frequency = 900.0e6;
     double bandwidth = 250e3f;
     double num_seconds = 20.0f;
     double uhd_rxgain = 20.0;
@@ -152,7 +152,7 @@ int main (int argc, char **argv)
 
     uhd::device_addr_t dev_addr;
     // device address in dks network
-    dev_addr["addr0"] = "134.147.118.214";
+    dev_addr["addr0"] = "134.147.118.211";
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
 
     // set properties
