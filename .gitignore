@@ -46,6 +46,7 @@ src/simo_tone
 src/miso_packet
 src/ping
 src/rssi
+src/usrp_info
 
 # miscellany
 *.swp
