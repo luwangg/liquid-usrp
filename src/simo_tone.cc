@@ -23,6 +23,7 @@
 #include <complex>
 #include <getopt.h>
 #include <liquid/liquid.h>
+#include <ctime>
 
 #include <uhd/usrp/multi_usrp.hpp>
 
@@ -35,31 +36,38 @@ void usage() {
     printf("  r     : usrp sampling rate [Hz] default: 1 MHz\n");
     printf("  a     : tone amplitude (default: 0.25)\n");
     printf("  G     : uhd rx gain [dB] (default: 20dB)\n");
-    printf("  S     : number of samples to capture (default: 2M)\n");
+    printf("  T     : number of seconds to operate (default: 60)\n");
 }
 
 int main (int argc, char **argv)
 {
-  // define temp variables
+
+  // define variables
   FILE * sink;
   sink = fopen("/tmp/sink", "wb");
   if (!(sink)){
     std::cout << "File open failed\n";
     exit(1);
   }
-  // defining PI
-  double PI = std::acos(-1);
-  
+
+  // defining standard params
   double cent_freq = 900.0e6;         // center frequency of transmission
   double tone_freq = 1000.0;          // tone frequency
   double samp_rate = 1e6;             // usrp samping rate
-  double tone_amp = 0.25;             // tone amplitude
-  double uhd_rxgain = 20.0;           // rx frontend gain
-  double num_samps = 2e6;             // number of samples to capture.
-  size_t sig_src_buff_len = 1e6;      // size of the signal source buffer
+  float tone_amp = 0.25;              // tone amplitude
+  double txgain = 20.0;               // tx frontend gain
+  double rxgain = 20.0;               // rx frontend gain
+  double num_secs = 5;                // number of seconds to operate
+  std::string cpu = "fc32";           // cpu format for the streamer
+  std::string wire = "sc16";          // wire formate for the streamer
 
+  // definging constants
+  const double PI = std::acos(-1);
+  const double wait_to_rx = 2.0;
+
+  // commandline options to modify the standard params
   int d;
-  while ((d = getopt(argc,argv,"uhF:f:r:a:G:S:")) != EOF) {
+  while ((d = getopt(argc,argv,"uhF:f:r:a:T:R:S:")) != EOF) {
     switch (d) {
       case 'u':
       case 'h':   usage();                        return 0;
@@ -67,46 +75,130 @@ int main (int argc, char **argv)
       case 'f':   tone_freq   = atof(optarg);     break;
       case 'r':   samp_rate   = atof(optarg);     break;
       case 'a':   tone_amp    = atof(optarg);     break;
-      case 'G':   uhd_rxgain  = atof(optarg);     break;
-      case 'S':   num_samps   = atof(optarg);     break;
-      default:
-                  usage();                        return 0;
+      case 'T':   txgain      = atof(optarg);     break;
+      case 'R':   rxgain      = atof(optarg);     break;
+      case 'S':   num_secs    = atof(optarg);     break;
+      default :   usage();                        return 0;
     }
   }
 
-    // define the address for tx and rx
-    uhd::device_addr_t tx_addr, rx_addr;
-    tx_addr["addr0"] = "134.147.118.211";
-    rx_addr["addr0"] = "134.147.118.213";
-    uhd::usrp::multi_usrp::sptr tx = uhd::usrp::multi_usrp::make(tx_addr);
-    uhd::usrp::multi_usrp::sptr rx = uhd::usrp::multi_usrp::make(rx_addr);
+  // define the address for tx and rx
+  uhd::device_addr_t tx_addr, rx_addr;
+  tx_addr["addr0"] = "134.147.118.211";
+  rx_addr["addr0"] = "134.147.118.213";
+  uhd::usrp::multi_usrp::sptr tx = uhd::usrp::multi_usrp::make(tx_addr);
+  uhd::usrp::multi_usrp::sptr rx = uhd::usrp::multi_usrp::make(rx_addr);
 
-    // define the signal source - liquid's nco object
-    // LIQUID_VCO generates complex sinusoids using sinf and cosf
-    // from the standard math library.
-    nco_crcf sig_src = nco_crcf_create(LIQUID_VCO);
-    std::cout << 2*PI*(tone_freq/samp_rate) << std::endl;
-    nco_crcf_set_frequency(sig_src, 2*PI*(tone_freq/samp_rate));
-    // allocate memory to store the sinusoid samples
-    std::complex<float> * sig_src_buff;
-    sig_src_buff = (std::complex<float> *)malloc(sig_src_buff_len*sizeof(std::complex<float>));
+  // setting tx frequency, rate and gain.
+  tx->set_tx_rate(samp_rate);
+  uhd::tune_request_t tx_tune_request(cent_freq);
+  uhd::tune_result_t tx_tune_result;
+  tx_tune_result = tx->set_tx_freq(tx_tune_request);
+  std::cout << "Transmit Tune Result\n";
+  std::cout << tx_tune_result.to_pp_string();
+  tx->set_tx_gain(txgain);
+  std::cout << "Transmit gain :" << tx->get_tx_gain() << "dB\n";
+  tx->set_tx_antenna("TX/RX");
+  std::cout << "Transmit Antenna :" << tx->get_tx_antenna() << "\n";
+
+  // setting rx frequency, rate and gain.
+  rx->set_rx_rate(samp_rate);
+  uhd::tune_request_t rx_tune_request(cent_freq);
+  uhd::tune_result_t rx_tune_result;
+  rx_tune_result = rx->set_rx_freq(rx_tune_request);
+  std::cout << "Receive Tune Result\n";
+  std::cout << rx_tune_result.to_pp_string();
+  rx->set_tx_gain(rxgain);
+  std::cout << "Receive gain :" << rx->get_rx_gain() << "dB\n";
+  rx->set_rx_antenna("TX/RX");
+  std::cout << "Receive Antenna :" << rx->get_rx_antenna() << "\n";
+
+  // create a tx streamer
+  uhd::stream_args_t tx_stream_args(cpu, wire);
+  uhd::tx_streamer::sptr tx_stream = tx->get_tx_stream(tx_stream_args);
+
+  // create an rx streamer
+  uhd::stream_args_t rx_stream_args(cpu, wire);
+  uhd::rx_streamer::sptr rx_stream = rx->get_rx_stream(rx_stream_args);
+
+  // allocate memory to store the sinusoid samples
+  size_t sig_src_buff_len = tx_stream->get_max_num_samps();
+  std::cout << "Transmit Buffer Length :" << sig_src_buff_len << "\n";
+  std::complex<float> * sig_src_buff;
+  sig_src_buff = (std::complex<float> *)malloc(sig_src_buff_len*sizeof(std::complex<float>));
+
+  // allocate memory to store the received samples
+  size_t rec_buff_len = rx_stream->get_max_num_samps();
+  std::cout << "Receive Buffer Length :" << rec_buff_len << "\n";
+  std::complex<float> * rec_buff;
+  rec_buff = (std::complex<float> *)malloc(rec_buff_len*sizeof(std::complex<float>));
+
+  // setup streaming
+  uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+  stream_cmd.stream_now = true;
+  rx->set_time_now(uhd::time_spec_t(0.0));
+  stream_cmd.time_spec = uhd::time_spec_t(wait_to_rx);
+  rx_stream->issue_stream_cmd(stream_cmd);
+
+  // define the signal source - liquid's nco object
+  nco_crcf sig_src = nco_crcf_create(LIQUID_VCO);
+  nco_crcf_set_frequency(sig_src, 2*PI*(tone_freq/samp_rate));
+
+  uhd::tx_metadata_t txmd;
+  txmd.start_of_burst = true;
+  txmd.end_of_burst = false;
+  uhd::rx_metadata_t rxmd;
+
+  // the starting time
+  time_t begin = time(NULL);
+  size_t num_rx_samps, num_saved_samps;
+  num_saved_samps = 0;
+
+  while(time(NULL) - begin < num_secs) {    // run for num_secs
     // populate the signal source
-    for (int i = 0; i < sig_src_buff_len; i++)
+    for (unsigned int i = 0; i < sig_src_buff_len; i++)
     {
       nco_crcf_cexpf(sig_src, sig_src_buff + i);
+      (*(sig_src_buff + i))*=tone_amp;
       nco_crcf_step(sig_src);
     }
-    // temp - write samples to file to see in matplotlib
-    if (sig_src_buff_len != fwrite((void *)sig_src_buff,
-                                   sizeof(std::complex<float>),
-                                   sig_src_buff_len,
-                                   sink))
-    {
-      std::cout << "Error in writing to file, exiting\n";
-      exit(1);
+    tx_stream->send(sig_src_buff,
+                    sig_src_buff_len,
+                    txmd);
+    txmd.start_of_burst = false;
+    num_rx_samps = rx_stream->recv(rec_buff,
+                                   rec_buff_len,
+                                   rxmd);
+    num_saved_samps += num_rx_samps;
+    if (num_rx_samps != rec_buff_len) {
+      std::cout << "Requested " << rec_buff_len << " samples\n";
+      std::cout << "recv returned with " << num_rx_samps << " samples\n";
     }
-    fclose(sink);
-    free(sig_src_buff);
-    return 0;
+    if(rxmd.error_code) {
+      std::cerr << "Receive Stream Error Code :" << rxmd.error_code << "\n";
+      break;
+    }
+    fwrite((void *)rec_buff, sizeof(std::complex<float>), num_rx_samps, sink);
+  }
+  // send the last packet
+  txmd.end_of_burst = true;
+  for (unsigned int i = 0; i < sig_src_buff_len; i++)
+  {
+    nco_crcf_cexpf(sig_src, sig_src_buff + i);
+    (*(sig_src_buff + i))*=tone_amp;
+    nco_crcf_step(sig_src);
+  }
+  tx_stream->send(sig_src_buff,
+                  sig_src_buff_len,
+                  txmd);
+  // stop rx streaming
+  stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
+  rx_stream->issue_stream_cmd(stream_cmd);
+
+  // free dynamically allocated memory
+  free(sig_src_buff);
+  free(rec_buff);
+  std::cout << "\nNumber of captured samples :" << num_saved_samps << std::endl;
+  return 0;
 }
 
