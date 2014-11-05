@@ -83,6 +83,7 @@ library_src :=					\
 	lib/multichanneltxrx.cc		\
 	lib/ofdmtxrx.cc				\
 	lib/timer.cc				\
+	lib/print_usrp_info.cc		\
 
 # library header files
 library_headers :=				\
@@ -91,6 +92,7 @@ library_headers :=				\
 	include/multichanneltxrx.h	\
 	include/ofdmtxrx.h			\
 	include/timer.h				\
+	include/print_usrp_info.h	\
 
 # example programs
 example_src :=					\
