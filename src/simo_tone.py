@@ -14,68 +14,18 @@ from gnuradio.eng_option import eng_option
 from gnuradio.filter import firdes
 from optparse import OptionParser
 import time
-import scipy as sp
-import matplotlib.pyplot as plt
-from cmath import phase, sqrt
-from math import pi
-
-def compute_channel(f1, f2, gain1, gain2, txdelay, rxdelay):
-    f = open("logfile.csv", 'a')
-    data1 = sp.fromfile(open("/tmp/sink1"), dtype=sp.complex64,
-            count=10000)[3000:7000]
-    data2 = sp.fromfile(open("/tmp/sink2"), dtype=sp.complex64,
-            count=10000)[3000:7000]
-    
-    real1 = [x.real for x in data1]
-    imag1 = [x.imag for x in data1]
-    real2 = [x.real for x in data2]
-    imag2 = [x.imag for x in data2]
-    phase1 = [phase(x) for x in data1]
-    phase2 = [phase(x) for x in data2]
-    phase_diff = [phase1[n] - phase2[n] for n in range(len(data1))]
-    for n in range(len(phase_diff)):
-        while(phase_diff[n] < 0):
-            phase_diff[n] += 2*pi
-        while(phase_diff[n] > 2*pi):
-            phase_diff[n] -= 2*pi
-    _sum = 0.0
-    for n in range(len(data1)):
-        _sum += pow(abs(data1[n]), 2)
-    _mean = _sum/len(data1)
-    x1 = sqrt(_mean)
-    
-    _sum = 0.0
-    for n in range(len(data2)):
-        _sum += pow(abs(data2[n]), 2)
-    _mean = _sum/len(data2)
-    x2 = sqrt(_mean)
-    string = time.asctime() + ", "
-    string = string + str(f1) + ",\t" + str(f2) + ",\t"
-    string = string + str("%.3f" % gain1) + ", " + str("%.3f" % gain2) + ", "
-    string = string + str("%.5f" % x1.real) + ", "
-    string = string + str("%.5f" % x2.real) + ", "
-    avg_phase_diff = sum(phase_diff)/len(phase_diff)
-    string = string + str("%.5f" % avg_phase_diff) + "\n"
-    f.write(string)
-    print string
-    f.close()
 
 class MeasureH(gr.top_block):
-
-    def __init__(self, fc, f1, f2, gain1, gain2, txdelay, rxdelay):
+    def __init__(self, fc, f, amp):
         gr.top_block.__init__(self, "Measureh")
 
         ##################################################
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 1e6
-        self.gain2 = gain2
-        self.gain1 = gain1
-        self.f1 = f1
-        self.f2 = f2
+        self.amp = amp
+        self.f = f
         self.fc = fc
-        self.txdelay = txdelay
-        self.rxdelay = rxdelay
 
         ##################################################
         # Blocks
@@ -112,7 +62,7 @@ class MeasureH(gr.top_block):
         self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_gr_complex*1, "/tmp/sink1", False)
         self.blocks_file_sink_0.set_unbuffered(False)
         self.analog_sig_source_x_0 = analog.sig_source_c(samp_rate,
-            analog.GR_COS_WAVE, self.f2, self.gain2, 0)
+            analog.GR_COS_WAVE, self.f, self.amp, 0)
 
         ##################################################
         # Connections
@@ -138,22 +88,17 @@ if __name__ == '__main__':
     ##################################
     # Set operating parameters
     ##################################
-    gain1=0.25
-    gain2=0.25
+    amp = 0.25
     fc = 900e6
     f = 1000
-    f1 = f
-    f2 = f
-    txdelay = 0
-    rxdelay = 0
 
     ##################################
     # Intiate and run the flowgraph
     ##################################
-    tb = MeasureH(fc, f1, f2, gain1, gain2, txdelay, rxdelay)
+    tb = MeasureH(fc, f, amp)
     tb.start()
     time.sleep(5)
     tb.stop()
     tb.wait()
     time.sleep(1)
-#    compute_channel(f1, f2, gain1, gain2, txdelay, rxdelay)
+
