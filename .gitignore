@@ -51,3 +51,6 @@ src/usrp_info
 # miscellany
 *.swp
 *.dat
+
+# ignore the log file
+src/logfile.csv
