@@ -47,6 +47,7 @@ src/miso_packet
 src/ping
 src/rssi
 src/usrp_info
+src/loopback
 
 # miscellany
 *.swp
