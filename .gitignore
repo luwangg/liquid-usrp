@@ -52,6 +52,3 @@ src/loopback
 # miscellany
 *.swp
 *.dat
-
-# ignore the log file
-src/logfile.csv
