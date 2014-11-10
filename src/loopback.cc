@@ -50,7 +50,6 @@ int UHD_SAFE_MAIN(int argc, char **argv)
 {
   uhd::set_thread_priority_safe();
 
-  // define variables
   // File to save data to.
   FILE * sink;
   sink = fopen("/tmp/sink", "wb");
@@ -93,36 +92,24 @@ int UHD_SAFE_MAIN(int argc, char **argv)
 
   // define the address for tx and rx
   uhd::device_addr_t addr;
-  addr["addr0"] = "134.147.118.211";
+  addr["addr0"] = "134.147.118.215";
   uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(addr);
 
   // setting tx frequency, rate and gain.
   usrp->set_tx_rate(samp_rate);
-  std::cout << "TX Rate :";
-  std::cout << usrp->get_tx_rate() << "\n";
   uhd::tune_request_t tx_tune_request(cent_freq);
   uhd::tune_result_t tx_tune_result;
   tx_tune_result = usrp->set_tx_freq(tx_tune_request);
-  std::cout << "Transmit Tune Result\n";
-  std::cout << tx_tune_result.to_pp_string();
-  usrp->set_tx_gain(txgain);
-  std::cout << "Transmit gain :" << usrp->get_tx_gain() << "dB\n";
+  usrp->set_tx_gain(txgain, "PGA0");
   usrp->set_tx_antenna("TX/RX");
-  std::cout << "Transmit Antenna :" << usrp->get_tx_antenna() << "\n";
 
   // set freq, rate, gain, antenna.
   usrp->set_rx_rate(samp_rate);
-  std::cout << "RX Rate :";
-  std::cout << usrp->get_rx_rate() << "\n";
   uhd::tune_request_t rx_tune_request(cent_freq);
   uhd::tune_result_t rx_tune_result;
   rx_tune_result = usrp->set_rx_freq(rx_tune_request);
-  std::cout << "Receive Tune Result" << "\n";
-  std::cout << rx_tune_result.to_pp_string();
-  usrp->set_rx_gain(rxgain);
-  std::cout << "Receive Gain :" << usrp->get_rx_gain() << "dB\n";
+  usrp->set_rx_gain(rxgain, "PGA0");
   usrp->set_rx_antenna("RX2");
-  std::cout << "Receive Antenna :" << usrp->get_rx_antenna() << "\n";
  
   // create a tx streamer
   uhd::stream_args_t tx_stream_args(cpu, wire);
@@ -134,13 +121,11 @@ int UHD_SAFE_MAIN(int argc, char **argv)
 
   // allocate memory to store the sinusoid samples
   size_t sig_src_buff_len = tx_stream->get_max_num_samps();
-  std::cout << "Transmit Buffer Length :" << sig_src_buff_len << "\n";
   std::complex<float> * sig_src_buff;
   sig_src_buff = (std::complex<float> *)malloc(sig_src_buff_len*sizeof(std::complex<float>));
 
   // allocate memory to store the received samples
   size_t rec_buff_len = rx_stream->get_max_num_samps();
-  std::cout << "Receive Buffer Length :" << rec_buff_len << "\n";
   std::complex<float> * rec_buff;
   rec_buff = (std::complex<float> *)malloc(rec_buff_len*sizeof(std::complex<float>));
 
@@ -208,33 +193,16 @@ int UHD_SAFE_MAIN(int argc, char **argv)
   // stop rx streaming
   stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
   rx_stream->issue_stream_cmd(stream_cmd);
-
-  std::cout << "\nNumber of captured samples :" << num_saved_samps << std::endl;
   // free dynamically allocated memory
   free(sig_src_buff);
   free(rec_buff);
+  fclose(sink);
   // wait a moment for everything to RIP
   boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
-
-  // What are the gain elements??
-  std::cout << "# Transmit Channels : " << usrp->get_tx_num_channels() << std::endl;
-  std::cout << "# Receive Channels : " << usrp->get_rx_num_channels() << std::endl;
-  std::vector<std::string> rx_gain_elems(usrp->get_rx_gain_names());
-  std::vector<std::string> tx_gain_elems(usrp->get_tx_gain_names());
-  std::cout << "TX Gain Elements:\n";
-  for (size_t elem = 0; elem < tx_gain_elems.size(); elem++)
-  {
-    std::cout << tx_gain_elems[elem] << std::endl;
-  }
-  std::cout << "RX Gain Elements:\n";
-  for (size_t elem = 0; elem < rx_gain_elems.size(); elem++)
-  {
-    std::cout << rx_gain_elems[elem] << std::endl;
-  }
-
-  // Property tree
-  print_usrp_config(usrp, true); 
-  print_usrp_config(usrp, false); 
+  std::cout << std::endl;
+  std::cout << "Run Parameters\n";
+  std::cout << "TX Gain : " << txgain << std::endl;
+  std::cout << "RX Gain : " << rxgain << std::endl;
+  std::cout << "TX Amp : " << tone_amp << std::endl;
   return EXIT_SUCCESS;
 }
-
