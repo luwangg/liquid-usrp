@@ -43,6 +43,7 @@ src/file_rx
 src/tone_tx
 src/miso_tone
 src/simo_tone
+src/simo_sig
 src/miso_packet
 src/ping
 src/rssi
