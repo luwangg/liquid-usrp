@@ -47,7 +47,6 @@ int main (int argc, char **argv)
 
     double frequency = 900.0e6;
     double bandwidth = 250e3f;
-    unsigned int num_frames = 2000;     // number of frames to transmit
     double txgain_dB = -12.0f;               // software tx gain [dB]
     double uhd_txgain = 20.0;           // uhd (hardware) tx gain
 
@@ -60,7 +59,7 @@ int main (int argc, char **argv)
     }
     //
     int d;
-    while ((d = getopt(argc,argv,"uhqvf:b:g:G:N:")) != EOF) {
+    while ((d = getopt(argc,argv,"uhqvf:b:g:G:")) != EOF) {
         switch (d) {
         case 'u':
         case 'h':   usage();                        return 0;
@@ -68,7 +67,6 @@ int main (int argc, char **argv)
         case 'b':   bandwidth   = atof(optarg);     break;
         case 'g':   txgain_dB   = atof(optarg);     break;
         case 'G':   uhd_txgain  = atof(optarg);     break;
-        case 'N':   num_frames  = atoi(optarg);     break;
         default:
             usage();
             return 0;
