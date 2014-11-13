@@ -109,9 +109,9 @@ int main (int argc, char **argv)
     double max_bandwidth = 0.25*(ADC_RATE /   4.0);
 
     double frequency = 900.0e6;
-    double bandwidth = 250e3f;
+    double bandwidth = 1000e3f;
     double num_seconds = 20.0f;
-    double uhd_rxgain = 20.0;
+    double uhd_rxgain = 30.0;
 
     // defining sink file
     sink_file = fopen("/tmp/sink.txt", "w");

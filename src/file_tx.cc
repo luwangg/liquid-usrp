@@ -49,10 +49,10 @@ int main (int argc, char **argv)
     double max_bandwidth = 0.25*(DAC_RATE /   4.0);
 
     double frequency = 900.0e6;
-    double bandwidth = 250e3f;
+    double bandwidth = 1000e3f;
     unsigned int num_frames = 2000;     // number of frames to transmit
     double txgain_dB = -12.0f;          // software tx gain [dB]
-    double uhd_txgain = 40.0;           // uhd (hardware) tx gain
+    double uhd_txgain = 300.0;           // uhd (hardware) tx gain
 
     // define source file, find it's length
     FILE *source_file;
