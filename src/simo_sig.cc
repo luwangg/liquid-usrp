@@ -28,6 +28,9 @@
 #include <uhd/utils/thread_priority.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
 #include <uhd/utils/safe_main.hpp>
+#include <gnuradio/filter/fft_filter.h>
+#include <gnuradio/gr_complex.h>
+#include <volk/volk.h>
 
 #include <boost/thread.hpp>
 
@@ -50,11 +53,11 @@ int UHD_SAFE_MAIN(int argc, char **argv)
 
   const std::complex<float> I(0.0, 1.0);
   double cent_freq = 900.0e6;         // center frequency of transmission
-  double samp_rate = 1e6;             // usrp samping rate
+  double samp_rate = 200e3;           // usrp samping rate
   float tone_amp = 0.25;              // tone amplitude
   double txgain = 5.0;                // tx frontend gain
   double rxgain = 1.0;                // rx frontend gain
-  double num_secs = 5;                // number of seconds to operate
+  double num_secs = 3;                // number of seconds to operate
   std::string cpu = "fc32";           // cpu format for the streamer
   std::string wire = "sc16";          // wire formate for the streamer
   unsigned int seq_len_exp = 6;
@@ -65,6 +68,14 @@ int UHD_SAFE_MAIN(int argc, char **argv)
   size_t num_rx_chans;
   size_t tx_buff_len;
   size_t rx_buff_len;
+  time_t begin;
+  size_t sample_index;
+  size_t num_rx_samps, num_saved_samps, delay;
+  size_t max_run;
+  float timeout = 0.1;
+  float corrs[4];
+  float mag_XR, mag_XI, mag_YR, mag_YI;
+  float temp;
 
   msequence ms1 = msequence_create(seq_len_exp, 0x005b, 1);
   msequence ms2 = msequence_create(seq_len_exp, 0x0043, 1);
@@ -75,12 +86,22 @@ int UHD_SAFE_MAIN(int argc, char **argv)
   std::complex<float> * smb;
   std::complex<float> * rrc;
   std::complex<float> * tx_buff;
+  std::complex<float> * xcorr;
+  float * XR;
+  float * XI;
+  float * YR;
+  float * YI;
   std::vector<std::complex<float> *> rx_buff;
+  std::vector<std::complex<float> *> rx_sig;
 
   pn1 = (std::complex<float> *)malloc(sizeof(std::complex<float>)*seq_len);
   pn2 = (std::complex<float> *)malloc(sizeof(std::complex<float>)*seq_len);
   smb = (std::complex<float> *)malloc(sizeof(std::complex<float>)*3*seq_len);
   rrc = (std::complex<float> *)malloc(sizeof(std::complex<float>)*3*seq_len*k);
+  XR = (float *)malloc(sizeof(float)*3*seq_len*k);
+  XI = (float *)malloc(sizeof(float)*3*seq_len*k);
+  YR = (float *)malloc(sizeof(float)*3*seq_len*k);
+  YI = (float *)malloc(sizeof(float)*3*seq_len*k);
   std::vector<size_t> chans;
 
   for(unsigned int i = 0; i < seq_len; i++)
@@ -97,14 +118,25 @@ int UHD_SAFE_MAIN(int argc, char **argv)
     smb[i + seq_len] = pn1[i] + I*pn2[i];
     smb[i + 2*seq_len] = 0.0f;
   }
-  for (unsigned int i = 0; i < 3*seq_len + m; i++) {
-    if(i < m)
-      firinterp_crcf_execute(interp, smb[i], rrc + 0);
-    else {
-      firinterp_crcf_execute(interp, smb[i%(3*seq_len)], rrc + k*(i - m));
-    }
-  }
+  for(unsigned int i = 0; i < 3*seq_len; i++)
+    firinterp_crcf_execute(interp, smb[i], rrc + k*i);
   firinterp_crcf_destroy(interp);
+
+  for(unsigned int i = 0; i < 3*seq_len*k; i++) {
+    XR[i] = real(rrc[i]);
+    XI[i] = imag(rrc[i]);
+  }
+  volk_32f_x2_dot_prod_32f(&mag_XR, XR, XR, 3*seq_len*k);
+  volk_32f_x2_dot_prod_32f(&mag_XI, XI, XI, 3*seq_len*k);
+  volk_32f_x2_dot_prod_32f(corrs + 0, XR, XR, 3*seq_len*k);
+  volk_32f_x2_dot_prod_32f(corrs + 1, XR, XI, 3*seq_len*k);
+  volk_32f_x2_dot_prod_32f(corrs + 2, XI, XR, 3*seq_len*k);
+  volk_32f_x2_dot_prod_32f(corrs + 3, XI, XI, 3*seq_len*k);
+  std::cout << "\nDelay = " << delay;
+  std::cout << "\n" << corrs[0]/(sqrt(mag_XR)*sqrt(mag_XR));
+  std::cout << "\t" << corrs[1];
+  std::cout << "\t" << corrs[2];
+  std::cout << "\t" << corrs[3];
 
   uhd::device_addr_t tx_addr, rx_addr;
   tx_addr["addr0"] = "134.147.118.211";
@@ -166,24 +198,165 @@ int UHD_SAFE_MAIN(int argc, char **argv)
   // allocate memory to store the received samples
   rx_buff_len = rx_stream->get_max_num_samps();
   std::cout << "Receive Buffer Length :" << rx_buff_len << "\n";
-  for (size_t chan = 0; chan < num_rx_chans; chan++)
+  for (size_t chan = 0; chan < num_rx_chans; chan++) {
     rx_buff.push_back((std::complex<float> *)malloc(rx_buff_len*sizeof(std::complex<float>)));
+    rx_sig.push_back((std::complex<float> *)malloc(((size_t)(num_secs*samp_rate))*sizeof(std::complex<float>)));
+  }
+
+  max_run = 10;
+  for(size_t run = 0; run < max_run; run++) {
+    uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+    stream_cmd.stream_now = true;
+    stream_cmd.time_spec = uhd::time_spec_t();
+    rx_stream->issue_stream_cmd(stream_cmd);
+  
+    uhd::tx_metadata_t txmd;
+    txmd.start_of_burst = true;
+    txmd.end_of_burst = false;
+    uhd::rx_metadata_t rxmd;
+  
+    // the starting time
+    begin = time(NULL);
+    num_saved_samps = 0;
+  
+    timeout = 0.1;
+    sample_index = 0;
+    while(time(NULL) - begin < num_secs) {    // run for num_secs
+      // populate the signal buffer
+      for (unsigned int i = 0; i < tx_buff_len; i++)
+      {
+        *(tx_buff + i) = *(rrc + sample_index);
+        sample_index += 1;
+        sample_index = (sample_index)%(3*seq_len*k);
+        (*(tx_buff + i))*=tone_amp;
+      }
+      // transmit the signal buffer
+      tx_stream->send(tx_buff,
+                      tx_buff_len,
+                      txmd);
+      txmd.start_of_burst = false;
+      // receive samples to the receive-buffer.
+      num_rx_samps = rx_stream->recv(rx_buff,
+                                     rx_buff_len,
+                                     rxmd,
+                                     timeout);
+      if (num_rx_samps != rx_buff_len) {
+        std::cout << "\nRequested " << rx_buff_len << " samples\n";
+        std::cout << "recv returned with " << num_rx_samps << " samples\n";
+      }
+      if(rxmd.error_code) {
+        std::cerr << "Receive Stream Error Code :" << rxmd.error_code << "\n";
+        break;
+      }
+      if(num_saved_samps + num_rx_samps > ((size_t)(num_secs*samp_rate)))
+        break;
+      for (size_t chan = 0; chan < num_rx_chans; chan++)
+        memmove((void *)(rx_sig[chan] + num_saved_samps),
+                rx_buff[chan],
+                sizeof(std::complex<float>)*num_rx_samps);
+      num_saved_samps += num_rx_samps;
+    }
+    // send the last packet
+    txmd.end_of_burst = true;
+    for (unsigned int i = 0; i < tx_buff_len; i++)
+    {
+      *(tx_buff + i) = *(rrc + sample_index);
+      sample_index += 1;
+      sample_index = (sample_index)%(3*seq_len*k);
+      (*(tx_buff + i))*=tone_amp;
+    }
+    tx_stream->send(tx_buff,
+                    tx_buff_len,
+                    txmd);
+    // stop rx streaming
+    stream_cmd.stream_mode = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
+    rx_stream->issue_stream_cmd(stream_cmd);
+  
+    delay = 0;
+    xcorr = (std::complex<float> *)malloc(sizeof(std::complex<float>)*(num_saved_samps - 3*seq_len*k + 1));
+    for(unsigned int i = 0; i < (num_saved_samps - 3*seq_len*k + 1); i++) {
+      volk_32fc_x2_conjugate_dot_prod_32fc(xcorr + i, rx_sig[0] + i, rrc, 3*seq_len*k);
+      if(std::abs(xcorr[i]) > std::abs(xcorr[delay]))
+        delay = i;
+    }
+    free(xcorr);
+    for(unsigned int i = 0; i < 3*seq_len*k; i++) {
+      YR[i] = real(rx_sig[0][delay + i]);
+      YI[i] = imag(rx_sig[0][delay + i]);
+    }
+    volk_32f_x2_dot_prod_32f(corrs + 0, XR, YR, 3*seq_len*k);
+    volk_32f_x2_dot_prod_32f(corrs + 1, XR, YI, 3*seq_len*k);
+    volk_32f_x2_dot_prod_32f(corrs + 2, XI, YR, 3*seq_len*k);
+    volk_32f_x2_dot_prod_32f(corrs + 3, XI, YI, 3*seq_len*k);
+    std::cout << "\nDelay = " << delay;
+    std::cout << "\n" << corrs[0];
+    std::cout << "\t" << corrs[1];
+    std::cout << "\t" << corrs[2];
+    std::cout << "\t" << corrs[3];
+  }
 
   // free all
-  free(rrc)
+  free(XR);
+  free(XI);
+  free(YR);
+  free(YI);
+  free(rrc);
   free(pn1);
   free(pn2);
   free(smb);
+  free(tx_buff);
+  for (size_t chan = 0; chan < num_rx_chans; chan++) {
+    free(rx_sig[chan]);
+    free(rx_buff[chan]);
+  }
   return EXIT_SUCCESS;
 }
-
-  /*
-  FILE * f;
-  f = fopen("/tmp/rrc", "wb");
-  if (!(f)){
+/*
+  FILE * f_rrc;
+  f_rrc = fopen("/tmp/rrc", "wb");
+  if (!(f_rrc)){
     std::cout << "File open failed\n";
     exit(1);
   }
-  fwrite((void *)rrc, sizeof(std::complex<float>), seq_len*3*k, f);
-  fclose(f);
-  */
+  fwrite((void *)rrc, sizeof(std::complex<float>), seq_len*3*k, f_rrc);
+  fclose(f_rrc);
+
+  FILE * f_sink;
+  f_sink = fopen("/tmp/sink", "wb");
+  if (!(f_sink)){
+    std::cout << "File open failed\n";
+    exit(1);
+  }
+  fwrite((void *)(rx_sig[0] + delay), sizeof(std::complex<float>), num_saved_samps, f_sink);
+  fclose(f_sink);
+
+  FILE * f_corr;
+  f_corr = fopen("/tmp/corr", "wb");
+  if (!(f_corr)){
+    std::cout << "File open failed\n";
+    exit(1);
+  }
+  fwrite((void *)xcorr, sizeof(std::complex<float>), num_saved_samps + 3*seq_len*k - 1, f_corr);
+  fclose(f_corr);
+
+
+
+
+  FILE * f_rrc;
+  f_rrc = fopen("/tmp/rrc", "wb");
+  if (!(f_rrc)){
+    std::cout << "File open failed\n";
+    exit(1);
+  }
+  fwrite((void *)rrc, sizeof(std::complex<float>), seq_len*3*k, f_rrc);
+  fclose(f_rrc);
+  FILE * f_sink;
+  f_sink = fopen("/tmp/sink", "wb");
+  if (!(f_sink)){
+    std::cout << "File open failed\n";
+    exit(1);
+  }
+  fwrite((void *)output, sizeof(std::complex<float>), 3*seq_len*k*max_run, f_sink);
+  fclose(f_sink);
+*/
+
