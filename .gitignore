@@ -55,3 +55,8 @@ src/x300-test
 # miscellany
 *.swp
 *.dat
+
+# ignore unwanted directories
+tests/
+data/
+cron.sh
