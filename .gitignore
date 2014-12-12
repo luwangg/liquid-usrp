@@ -49,6 +49,8 @@ src/ping
 src/rssi
 src/usrp_info
 src/loopback
+src/generate_pn
+src/x300-test
 
 # miscellany
 *.swp
