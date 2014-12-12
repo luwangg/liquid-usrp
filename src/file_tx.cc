@@ -48,7 +48,7 @@ int main (int argc, char **argv)
     double min_bandwidth = 0.25*(DAC_RATE / 512.0);
     double max_bandwidth = 0.25*(DAC_RATE /   4.0);
 
-    double frequency = 900.0e6;
+    double frequency = 2450.0e6;
     double bandwidth = 1000e3f;
     unsigned int num_frames = 2000;     // number of frames to transmit
     double txgain_dB = -12.0f;          // software tx gain [dB]
@@ -90,8 +90,10 @@ int main (int argc, char **argv)
 
     uhd::device_addr_t dev_addr;
     // device address in dks network
-    dev_addr["addr0"] = "134.147.118.213";
+    dev_addr["addr0"] = "134.147.118.216";
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
+    uhd::usrp::subdev_spec_t subdev("A:0");
+    usrp->set_tx_subdev_spec(subdev, 0);
 
     // set properties
     double tx_rate = 4.0*bandwidth;

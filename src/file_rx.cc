@@ -108,9 +108,9 @@ int main (int argc, char **argv)
     double min_bandwidth = 0.25*(ADC_RATE / 512.0);
     double max_bandwidth = 0.25*(ADC_RATE /   4.0);
 
-    double frequency = 900.0e6;
+    double frequency = 2450.0e6;
     double bandwidth = 1000e3f;
-    double num_seconds = 20.0f;
+    double num_seconds = 60.0f;
     double uhd_rxgain = 30.0;
 
     // defining sink file
@@ -152,8 +152,10 @@ int main (int argc, char **argv)
 
     uhd::device_addr_t dev_addr;
     // device address in dks network
-    dev_addr["addr0"] = "134.147.118.211";
+    dev_addr["addr0"] = "134.147.118.217";
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
+    uhd::usrp::subdev_spec_t subdev("B:0");
+    usrp->set_tx_subdev_spec(subdev, 0);
 
     // set properties
     double rx_rate = 4.0f*bandwidth;
