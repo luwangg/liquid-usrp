@@ -45,8 +45,8 @@ int main (int argc, char **argv)
     double min_bandwidth = 0.25*(DAC_RATE / 512.0);
     double max_bandwidth = 0.25*(DAC_RATE /   4.0);
 
-    double frequency = 900.0e6;
-    double bandwidth = 250e3f;
+    double frequency = 2450.0e6;
+    double bandwidth = 1000e3f;
     double txgain_dB = -12.0f;               // software tx gain [dB]
     double uhd_txgain = 20.0;           // uhd (hardware) tx gain
 
@@ -83,13 +83,14 @@ int main (int argc, char **argv)
 
     uhd::device_addr_t dev_addr;
     // device address in dks network
-    dev_addr["addr0"] = "134.147.118.213";
-    dev_addr["addr1"] = "134.147.118.214";
+    dev_addr["addr0"] = "134.147.118.216";
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(dev_addr);
+    uhd::usrp::subdev_spec_t subdev("A:0 B:0");
+    usrp->set_tx_subdev_spec(subdev);
 
     // declaring the MIMO config
-    usrp->set_clock_source("mimo", 1);
-    usrp->set_time_source("mimo", 1);
+//    usrp->set_clock_source("mimo", 1);
+//    usrp->set_time_source("mimo", 1);
     usrp->set_time_now(uhd::time_spec_t(0.0), 0);
 
     // waiting for a while
@@ -227,8 +228,9 @@ int main (int argc, char **argv)
             unsigned int n;
             for (n=0; n<nw; n++) {
                 // append to USRP buffer, scaling by software
-                buffs[0][usrp_sample_counter] = g*buffer_resamp[n];
-                buffs[1][usrp_sample_counter++] = g*buffer_resamp[n];
+                buffs[0][usrp_sample_counter] = g*(std::real(buffer_resamp[n]));
+                buffs[1][usrp_sample_counter] = g*(std::imag(buffer_resamp[n]));
+                usrp_sample_counter++;
 
                 // once USRP buffer is full, reset counter and send to device
                 if (usrp_sample_counter==buff_len) {
