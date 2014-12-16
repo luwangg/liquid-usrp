@@ -52,6 +52,7 @@ src/loopback
 src/generate_pn
 src/x300-test
 src/test-chunks-to-symbols
+src/liquidgr-test
 
 # miscellany
 *.swp
