@@ -53,6 +53,7 @@ src/generate_pn
 src/x300-test
 src/test-chunks-to-symbols
 src/liquidgr-test
+src/mimo/mimo-test
 
 # miscellany
 *.swp
